@@ -326,7 +326,7 @@ class P2PChatApp:
                 messagebox.showerror(" 错误", f"用户名 {new_username} 已存在")
             else:
                 self.username  = new_username 
-                self.username_label.config(text=f" 当前用户名: {self.username}") 
+                self.username_label.config(text=f" 当前用户: {self.username}") 
                 self.broadcast_presence() 
                 break 
 
