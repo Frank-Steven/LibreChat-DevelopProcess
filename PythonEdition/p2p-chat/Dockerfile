@@ -32,3 +32,4 @@ ENV DISPLAY=host.docker.internal:0
 
 # 运行应用程序
 CMD ["python", "chat_app.py"]
+    

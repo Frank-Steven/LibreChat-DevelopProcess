@@ -35,7 +35,6 @@ class P2PChatApp:
         main_frame = self.create_main_frame()
         self.create_user_listbox(main_frame)
         self.create_chat_frame(main_frame)
-        self.create_status_bar(main_frame)  # 新增状态栏
 
     def create_main_frame(self):
         main_frame = ttk.Frame(self.master, padding="10")
@@ -44,14 +43,12 @@ class P2PChatApp:
 
     def create_user_listbox(self, main_frame):
         self.user_frame = ttk.Frame(main_frame)
-        self.user_listbox = tk.Listbox(self.user_frame, width=30, height=20, bg="#f0f0f0", bd=2,
-                                       relief=tk.SUNKEN, highlightthickness=0, font=("Arial", 12))
+        self.user_listbox = tk.Listbox(self.user_frame, width=20, height=30, bg="#ffffff", bd=0,
+                                       highlightthickness=0)
+        self.user_listbox.configure(font=("Arial", 10))
         self.user_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.user_listbox.bind('<<ListboxSelect>>', self.select_user)
-        self.user_scrollbar = ttk.Scrollbar(self.user_frame, orient="vertical", command=self.user_listbox.yview)
-        self.user_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.user_listbox.configure(yscrollcommand=self.user_scrollbar.set)
-        self.user_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y, expand=False)
+        self.user_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
 
     def create_chat_frame(self, main_frame):
         self.chat_frame = ttk.Frame(main_frame)
@@ -63,30 +60,14 @@ class P2PChatApp:
 
     def create_chat_top_frame(self):
         top_frame = ttk.Frame(self.chat_frame)
-        self.username_label = ttk.Label(top_frame, text=f"当前用户: {self.username}", anchor="w", font=("Arial", 16))
-        self.username_label.pack(side=tk.LEFT, padx=10, pady=10)
+        self.username_label = ttk.Label(top_frame, text=f"当前用户名: {self.username}", anchor="w", font=("Arial", 14))
+        self.username_label.pack(side=tk.LEFT, padx=5, pady=5)
         change_username_button = ttk.Button(top_frame, text="修改用户名", command=self.change_username)
-        change_username_button.pack(side=tk.RIGHT, padx=10, pady=10)
+        change_username_button.pack(side=tk.RIGHT, padx=5, pady=5)
         top_frame.pack(fill=tk.X)
 
-    def create_status_bar(self, main_frame):
-        # 创建状态栏样式
-        style = ttk.Style()
-        style.configure("StatusBar.TLabel", background="#d3d3d3")  # 使用样式定义背景色
-        
-        # 使用自定义样式创建标签
-        self.status_bar = ttk.Label(
-            main_frame, 
-            text="就绪", 
-            anchor="w", 
-            font=("Arial", 12), 
-            style="StatusBar.TLabel"  # 应用自定义样式
-        )
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
-
-
     def create_chat_title(self):
-        self.chat_title = ttk.Label(self.chat_frame, text="LibreChat", anchor="w", font=("Arial", 14))
+        self.chat_title = ttk.Label(self.chat_frame, text="未选择聊天对象", anchor="w", font=("Arial", 14))
         self.chat_title.pack(fill=tk.X, padx=5, pady=5)
 
     def create_chat_window(self):
