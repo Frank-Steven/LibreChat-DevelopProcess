@@ -35,7 +35,6 @@ class P2PChatApp:
         main_frame = self.create_main_frame()
         self.create_user_listbox(main_frame)
         self.create_chat_frame(main_frame)
-        self.create_status_bar(main_frame)  # 新增状态栏
 
     def create_main_frame(self):
         main_frame = ttk.Frame(self.master, padding="10")
@@ -68,22 +67,6 @@ class P2PChatApp:
         change_username_button = ttk.Button(top_frame, text="修改用户名", command=self.change_username)
         change_username_button.pack(side=tk.RIGHT, padx=10, pady=10)
         top_frame.pack(fill=tk.X)
-
-    def create_status_bar(self, main_frame):
-        # 创建状态栏样式
-        style = ttk.Style()
-        style.configure("StatusBar.TLabel", background="#d3d3d3")  # 使用样式定义背景色
-        
-        # 使用自定义样式创建标签
-        self.status_bar = ttk.Label(
-            main_frame, 
-            text="就绪", 
-            anchor="w", 
-            font=("Arial", 12), 
-            style="StatusBar.TLabel"  # 应用自定义样式
-        )
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
-
 
     def create_chat_title(self):
         self.chat_title = ttk.Label(self.chat_frame, text="LibreChat", anchor="w", font=("Arial", 14))
@@ -132,10 +115,10 @@ class P2PChatApp:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             message = self.get_broadcast_message()
             broadcast_address = '172.19.255.255'
-            print(f"[DEBUG] Sending broadcast to {broadcast_address}:{self.broadcast_port}")
+            # print(f"[DEBUG] Sending broadcast to {broadcast_address}:{self.broadcast_port}")
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             sock.sendto(message.encode(), (broadcast_address, self.broadcast_port))
-            print(f"[DEBUG] Broadcast sent successfully")
+            # print(f"[DEBUG] Broadcast sent successfully")
             self.broadcast_timer = threading.Timer(self.broadcast_interval, self.broadcast_presence)
             self.broadcast_timer.start()
         except Exception as e:
@@ -156,11 +139,31 @@ class P2PChatApp:
                 data, addr = sock.recvfrom(1024)
                 print(f"[DEBUG] Received broadcast from {addr}: {data.decode()}")
                 peer_info = json.loads(data.decode())
+
+                # 过滤自己的广播消息
+                if peer_info['ip'] == socket.gethostbyname(socket.gethostname()):
+                    continue
+
+                # 检查用户名冲突
+                if peer_info['username'] == self.username:
+                    # 生成一个新的用户名
+                    new_username = "User_" + socket.gethostname()[-3:] + "_" + str(datetime.now().timestamp())[-3:]
+                    # 强制修改用户名
+                    self.master.after(0, self.force_change_username, new_username)
+                    continue
+
                 if peer_info['username'] != self.username:
                     self.update_peer_info(peer_info)
                     self.master.after(0, self.update_user_list)
             except Exception as e:
                 print(f"Broadcast listener error: {e}")
+
+    def force_change_username(self, new_username):
+        """强制修改用户名"""
+        self.username = new_username
+        self.username_label.config(text=f"当前用户: {self.username}")
+        self.broadcast_presence()
+        messagebox.showinfo("用户名冲突", f"检测到用户名冲突，已自动修改为: {new_username}")
 
     def update_peer_info(self, peer_info):
         self.peers[peer_info['ip']] = peer_info
@@ -178,8 +181,27 @@ class P2PChatApp:
 
     def handle_client(self, client_socket):
         try:
-            data = client_socket.recv(1024).decode()
+            # 接收消息长度头(4字节)
+            length_header = client_socket.recv(4)
+            if not length_header:
+                return
+                
+            # 解析消息长度
+            message_length = int.from_bytes(length_header, byteorder='big')
+            
+            # 接收完整消息
+            chunks = []
+            bytes_received = 0
+            while bytes_received < message_length:
+                chunk = client_socket.recv(min(message_length - bytes_received, 4096))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                bytes_received += len(chunk)
+                
+            data = b''.join(chunks).decode()
             message = json.loads(data)
+            
             peer_ip = message.get('from_ip', None)
             if peer_ip in self.peers:
                 self.message_records[peer_ip].append(message)
@@ -206,7 +228,16 @@ class P2PChatApp:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((peer_ip, self.chat_port))
             message_data = self.get_outgoing_message(message)
-            sock.send(json.dumps(message_data).encode())
+            
+            # 序列化消息
+            message_json = json.dumps(message_data)
+            
+            # 发送消息长度头(4字节)
+            sock.send(len(message_json).to_bytes(4, byteorder='big'))
+            
+            # 发送消息内容
+            sock.sendall(message_json.encode())
+            
             self.message_records[peer_ip].append(message_data)
             self.display_message(message_data)
             self.update_user_list()
@@ -249,7 +280,7 @@ class P2PChatApp:
             last_msg_display = f"{sender}: {msg_short}"
         else:
             last_msg_display = ""
-        unread_display = f"({unread}条未读) " if unread > 0 else ""
+        unread_display = f"({unread}条) " if unread > 0 else ""
         return f"{unread_display}{peer['username']} [{last_msg_display}]"
 
     def select_user(self, event):
@@ -269,11 +300,35 @@ class P2PChatApp:
             self.update_user_list()
 
     def change_username(self):
-        new_username = simpledialog.askstring("修改用户名", "请输入新的用户名：", initialvalue=self.username)
-        if new_username:
-            self.username = new_username
-            self.username_label.config(text=f"当前用户名: {self.username}")
-            self.broadcast_presence()
+        """修改后的用户名判重逻辑"""
+        while True:
+            new_username = simpledialog.askstring( 
+                "修改用户名",
+                "输入新用户名:",
+                parent=self.master  
+            )
+            if not new_username:  # 用户取消输入 
+                return 
+                
+            # 检查新名字是否与当前相同 
+            if new_username == self.username: 
+                messagebox.showinfo(" 提示", "新用户名与当前相同")
+                return 
+                
+            # 检查长度限制 
+            if len(new_username) > 20:
+                messagebox.showerror(" 错误", "用户名不能超过20字符")
+                continue 
+                
+            # 从peers字典中提取所有用户名进行比较 
+            existing_usernames = [peer['username'] for peer in self.peers.values()] 
+            if new_username in existing_usernames:
+                messagebox.showerror(" 错误", f"用户名 {new_username} 已存在")
+            else:
+                self.username  = new_username 
+                self.username_label.config(text=f" 当前用户名: {self.username}") 
+                self.broadcast_presence() 
+                break 
 
 
 if __name__ == "__main__":
