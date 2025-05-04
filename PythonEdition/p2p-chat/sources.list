@@ -1,0 +1,11 @@
+# 清华大学镜像源
+deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bullseye main contrib non-free
+deb https://mirrors.tuna.tsinghua.edu.cn/debian-security bullseye-security main contrib non-free
+
+# 阿里云镜像源
+deb https://mirrors.aliyun.com/debian/ bullseye main contrib non-free
+deb https://mirrors.aliyun.com/debian-security bullseye-security main contrib non-free
+
+# 中科大镜像源
+deb https://mirrors.ustc.edu.cn/debian/ bullseye main contrib non-free
+deb https://mirrors.ustc.edu.cn/debian-security bullseye-security main contrib non-free

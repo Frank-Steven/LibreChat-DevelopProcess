@@ -1,0 +1,21 @@
+{
+  "builder": {
+    "gc": {
+      "defaultKeepStorage": "20GB",
+      "enabled": true
+    }
+  },
+  "experimental": false,
+  "registry-mirrors": [
+    "https://ccr.ccs.tencentyun.com",
+    "https://mirror.baidubce.com",
+    "http://hub-mirror.c.163.com",
+    "https://dockerproxy.com",
+    "https://docker.xuanyuan.me/",
+    "https://1ms.run/",
+    "https://docker-mirror.aigc2d.com/",
+    "https://docker.1panel.live",
+    "https://dislabaiot.xyz/",
+    "https://docker.unsee.tech/"
+  ]
+}
