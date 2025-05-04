@@ -14,13 +14,6 @@ class P2PChatApp:
         self.setup_user_config()
         self.create_widgets()
         self.setup_networking()
-        self.master.protocol("WM_DELETE_WINDOW", self.on_close)
-    
-    def on_close(self):
-        """窗口关闭时清理资源"""
-        if hasattr(self, 'broadcast_timer'):
-            self.broadcast_timer.cancel()
-        self.master.destroy()
 
     def setup_master_window(self):
         self.master.title("P2P Chat v1.0")
@@ -37,8 +30,6 @@ class P2PChatApp:
         self.selected_peer = None
         self.message_records = {}
         self.unread_counts = {}
-        self.peer_last_seen = {}  # 记录每个peer最后出现的时间
-        self.peer_timeout = 15    # 超时时间(秒)
 
     def create_widgets(self):
         main_frame = self.create_main_frame()
@@ -103,29 +94,6 @@ class P2PChatApp:
         self.start_broadcast_listener()
         self.start_chat_server()
         self.start_broadcast_timer()
-        # 添加离线检测定时器
-        self.start_peer_check_timer()
-        
-    def start_peer_check_timer(self):
-        """启动peer状态检测定时器"""
-        self.check_peer_status()
-        self.master.after(1000, self.start_peer_check_timer)  # 每秒检查一次
-
-    def check_peer_status(self):
-        """检查peer是否离线"""
-        now = datetime.now()
-        offline_peers = []
-        
-        for ip, last_seen in self.peer_last_seen.items():
-            if (now - last_seen).total_seconds() > self.peer_timeout:
-                offline_peers.append(ip)
-        
-        # 如果有peer离线且当前选中了离线peer，禁用输入
-        if self.selected_peer and self.selected_peer['ip'] in offline_peers:
-            self.input_entry.config(state=tk.DISABLED)
-            self.chat_title.config(text=f"与 {self.selected_peer['username']} 聊天 (离线)")
-        
-        self.update_user_list()  # 更新用户列表显示
 
     def start_broadcast_listener(self):
         self.broadcast_listener = threading.Thread(target=self.listen_for_broadcast)
@@ -199,11 +167,9 @@ class P2PChatApp:
 
     def update_peer_info(self, peer_info):
         self.peers[peer_info['ip']] = peer_info
-        self.peer_last_seen[peer_info['ip']] = datetime.now()  # 更新最后活跃时间
         if peer_info['ip'] not in self.message_records:
             self.message_records[peer_info['ip']] = []
             self.unread_counts[peer_info['ip']] = 0
-        self.master.after(0, self.update_user_list)  # 立即更新列表显示
 
     def start_chat_server_loop(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -251,35 +217,30 @@ class P2PChatApp:
         message = self.input_entry.get()
         if not message:
             return
-        
-        # 检查对方是否在线
+        self.input_entry.delete(0, tk.END)
+
         if not self.selected_peer:
             messagebox.showwarning("警告", "请先选择一个聊天对象")
             return
-        
-        now = datetime.now()
-        is_online = (now - self.peer_last_seen.get(self.selected_peer['ip'], now)).total_seconds() <= self.peer_timeout
-        
-        if not is_online:
-            messagebox.showwarning("警告", "对方已离线，无法发送消息")
-            return
-        
-        self.input_entry.delete(0, tk.END)
+
         peer_ip = self.selected_peer['ip']
-        
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)  # 设置5秒超时
             sock.connect((peer_ip, self.chat_port))
             message_data = self.get_outgoing_message(message)
-            sock.send(json.dumps(message_data).encode())
+            
+            # 序列化消息
+            message_json = json.dumps(message_data)
+            
+            # 发送消息长度头(4字节)
+            sock.send(len(message_json).to_bytes(4, byteorder='big'))
+            
+            # 发送消息内容
+            sock.sendall(message_json.encode())
+            
             self.message_records[peer_ip].append(message_data)
             self.display_message(message_data)
             self.update_user_list()
-        except socket.timeout:
-            messagebox.showerror("错误", "连接超时，对方可能已离线")
-            self.peer_last_seen[peer_ip] = datetime.now() - timedelta(seconds=self.peer_timeout+1)
-            self.check_peer_status()
         except Exception as e:
             messagebox.showerror("错误", f"发送失败: {e}")
 
@@ -310,12 +271,8 @@ class P2PChatApp:
             self.user_listbox.itemconfig(tk.END, {'fg': 'gray'})
 
     def get_user_list_display_text(self, peer_ip, peer):
-        now = datetime.now()
-        is_online = (now - self.peer_last_seen.get(peer_ip, now)).total_seconds() <= self.peer_timeout
-        
         unread = self.unread_counts[peer_ip]
         last_msg = self.message_records[peer_ip][-1] if self.message_records[peer_ip] else None
-        
         if last_msg:
             sender = last_msg['from']
             msg = last_msg['message']
@@ -323,30 +280,17 @@ class P2PChatApp:
             last_msg_display = f"{sender}: {msg_short}"
         else:
             last_msg_display = ""
-        
-        unread_display = f"({unread}未读) " if unread > 0 else ""
-        status = "在线" if is_online else "离线"
-        
-        return f"{peer['username']} [{status}] {unread_display}{last_msg_display}"
+        unread_display = f"({unread}条) " if unread > 0 else ""
+        return f"{unread_display}{peer['username']} [{last_msg_display}]"
 
     def select_user(self, event):
         selected = self.user_listbox.curselection()
         if selected:
             peer_ip = list(self.peers.keys())[selected[0]]
             self.selected_peer = self.peers[peer_ip]
-            
-            # 检查是否在线
-            now = datetime.now()
-            is_online = (now - self.peer_last_seen.get(peer_ip, now)).total_seconds() <= self.peer_timeout
-            
-            if is_online:
-                self.input_entry.config(state=tk.NORMAL)
-                self.chat_title.config(text=f"与 {self.selected_peer['username']} 聊天")
-            else:
-                self.input_entry.config(state=tk.DISABLED)
-                self.chat_title.config(text=f"与 {self.selected_peer['username']} 聊天 (离线)")
-            
+            self.input_entry.config(state=tk.NORMAL)
             self.input_entry.focus()
+            self.chat_title.config(text=f"与 {self.selected_peer['username']} 聊天")
             self.chat_window.config(state=tk.NORMAL)
             self.chat_window.delete(1.0, tk.END)
             for msg in self.message_records[peer_ip]:
