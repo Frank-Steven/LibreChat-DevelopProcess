@@ -30,13 +30,21 @@ class P2PChatApp:
         screen_width = self.master.winfo_screenwidth()
         screen_height = self.master.winfo_screenheight()
         self.scaling = min(screen_width/1920, screen_height/1080)*1.5  # 缩放比例
-        width = int(screen_width*0.5)
-        height = int(screen_height*0.7)
+        width = int(screen_width*0.5 * self.scaling)
+        height = int(screen_height*0.7 * self.scaling)
         self.master.geometry(f"{width}x{height}")
         
         # 设置最小窗口尺寸为初始尺寸的70%
-        self.master.minsize(int(width*0.7), int(height*0.7))
+        min_width = int(width * 0.7)
+        min_height = int(height * 0.7)
+        self.master.minsize(min_width, min_height)
         self.master.configure(bg="#f0f0f0")
+        
+        # 设置图标
+        try:
+            self.master.iconbitmap('D:\\LibreChat-DevelopProcess\\app.ico') 
+        except Exception as e:
+            print(f"无法设置图标: {e}")
         
         # 创建样式对象并设置缩放比例
         self.style = ttk.Style()
@@ -55,7 +63,6 @@ class P2PChatApp:
         self.unread_counts = {}
         self.last_active_time = {}  # 记录每个peer的最后活跃时间
         self.peer_timeout = 15  # 15秒无响应视为离线
-
 
     def create_widgets(self):
         self.master.grid_rowconfigure(0, weight=1)
@@ -144,7 +151,6 @@ class P2PChatApp:
         self.chat_frame.rowconfigure(1, weight=0)  
         self.chat_frame.rowconfigure(2, weight=1)  
         self.chat_frame.rowconfigure(3, weight=0)  
-
 
     def create_input_frame(self):
         self.input_frame = ttk.Frame(self.chat_frame)
@@ -235,8 +241,9 @@ class P2PChatApp:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 sock.sendto(message.encode(), ('255.255.255.255', self.broadcast_port))
+                print(f"[DEBUG] Fallback to limited broadcast")
             except Exception as fallback_e:
-                print(f"Fallback broadcast error: {fallback_e}")
+                print(f"Fallback broadcast also failed: {fallback_e}")
 
     def get_broadcast_message(self):
         return json.dumps({
@@ -481,7 +488,6 @@ class P2PChatApp:
                 self.username_label.config(text=f"当前用户: {self.username}", style='Small.TLabel') 
                 self.broadcast_presence() 
                 break 
-
 
 if __name__ == "__main__":
     root = tk.Tk()
